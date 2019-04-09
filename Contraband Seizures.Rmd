@@ -1,0 +1,111 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(sf)
+library(fs) 
+library(ggplot2)
+library(dplyr)
+library(ggthemes)
+
+hartford <- read_rds(url("https://stacks.stanford.edu/file/druid:tr137st9964/tr137st9964_ct_hartford_2019_02_25.rds"))
+
+download.file(
+  url = "https://stacks.stanford.edu/file/druid:tr137st9964/tr137st9964_ct_hartford_shapefiles_2019_02_25.tgz", 
+  destfile ="hartford_shapefile.tgz",
+  mode = 'wb',
+  quiet = TRUE)
+
+untar("hartford_shapefile.tgz")
+
+hart_sf <- read_sf("./ct_hartford_shapefiles/Hartford_Neighborhoods.shp")
+
+file_delete(c("hartford_shapefile.tgz", "ct_hartford_shapefiles/"))
+
+
+```
+
+```{r data_manipulation}
+#I wanted to see if there are certain areas where contraband is particulary
+#present in the city.
+
+contraband <- hartford %>% 
+  
+#contraband_found is a logical so the filter keeps all the rows where
+#contraband was found during a stop.
+  
+  filter(contraband_found) %>% 
+  
+#sf does not work well with Nas
+  
+  filter(!is.na(lat), !is.na(lng), !is.na(district))%>%
+  
+#grouping by to differentiate between areas of the city 
+  
+  group_by(district)%>%
+  
+#finding the number of seizures by district 
+  
+  mutate(contrabands = sum(contraband_found))%>%
+  
+# renaming in order to left_join contraband data with the hart_sf data
+  rename(NAME = district)
+
+hartford_shapes<- left_join(hart_sf, contraband, by = "NAME")
+
+#creates the geometry for contraband so that I can graph each seizure on the
+#map.
+
+contraband_locations <- st_as_sf(contraband, 
+                             coords = c("lng", "lat"), 
+                             crs = 4326) 
+
+```
+
+```{r graphic_creation, fig.height=8, fig.width=8}
+
+#making the map of hartford with distinct districts and where each seizure has
+#occured to find trends
+
+ggplot(data = hartford_shapes) +
+  
+#creates the base map of hartford and fills based on number of seizures, which
+#visually works as a heat map of areas where contraband is particularly
+#prevelent.
+  
+  geom_sf(mapping = aes(fill = contrabands)) +
+  
+#overlays the map with where contraband has been found in teh form of points.
+#Further distinguishes where contraband has been found.
+  
+  geom_sf(data = contraband_locations, aes(color = subject_race)) +
+  
+#makes the graph cleaner by eliminating tick marks and allows for more graphical
+#features
+  
+  theme_map() +  
+  
+# for aesthetic purposes, helps distinguish where most contraband can be found
+# by district
+  
+ scale_fill_viridis_c() +
+  
+#the legend originally blocked off some of the graph on the side so I needed to
+#move it to the bottom. also elimnates unnecessary grid lines.
+  
+ theme(legend.position = "bottom", panel.grid = element_line(color = "white"))+
+
+#creates title, subtle and caption as well as fixes the titles of the legends
+  
+  labs(title = "Contraband Found In Hartford, Connecticut During Police Stops From 2013-2016",
+       subtitle = "A Greater Concentration of Contraband Has Been Seized Towards Downtown and the Inner City", 
+       caption = "Source: Stanford Open Policing Project",
+       color = "Race", 
+       fill = "Contraband Seizures")
+  
+  
+
+
+```
+
