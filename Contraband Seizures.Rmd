@@ -63,7 +63,7 @@ contraband_locations <- st_as_sf(contraband,
 
 ```
 
-```{r graphic_creation, fig.height=8, fig.width=8}
+```{r graphic_creation, fig.height=6, fig.width=8}
 
 #making the map of hartford with distinct districts and where each seizure has
 #occured to find trends
